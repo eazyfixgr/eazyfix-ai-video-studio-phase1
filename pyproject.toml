@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eazyfix-ai-video-studio"
+version = "0.1.0"
+description = "Editable motion graphics video studio for Windows"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["PySide6>=6.8", "Pillow>=10.4"]
+
+[project.scripts]
+eazyfix-studio = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["eazyfix_studio", "eazyfix_studio.ui"]

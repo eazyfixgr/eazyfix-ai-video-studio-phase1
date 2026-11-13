@@ -1,0 +1,62 @@
+{
+  "id": "eazyfix-sample-project",
+  "name": "EazyFix Website Promo",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "language": "el",
+  "assets": [],
+  "music_asset_id": "",
+  "music_volume": 0.22,
+  "music_fade_in": 0.6,
+  "music_fade_out": 1.0,
+  "schema_version": 1,
+  "export_crf": 20,
+  "scenes": [
+    {
+      "id": "sample-scene-intro",
+      "title": "Δυνατό ξεκίνημα",
+      "duration": 3.0,
+      "background_top": "#090C1E",
+      "background_bottom": "#1A1E43",
+      "transition": "fade",
+      "transition_duration": 0.45,
+      "layers": [
+        {"id":"sample-intro-brand","role":"brand_label","kind":"text","text":"EAZYFIX  •  DIGITAL STUDIO","x":0.5,"y":0.12,"width":0.85,"height":0.04,"font_size":26,"color":"#AAB4D5","animation":"fade"},
+        {"id":"sample-intro-headline","role":"intro_headline","kind":"text","text":"Η ΕΠΙΧΕΙΡΗΣΗ\nΣΟΥ ΕΙΝΑΙ","x":0.5,"y":0.34,"width":0.88,"height":0.2,"font_size":90,"color":"#F7F8FF","animation":"fade_up"},
+        {"id":"sample-intro-accent","role":"intro_accent","kind":"text","text":"ΜΟΝΑΔΙΚΗ.","x":0.5,"y":0.5,"width":0.9,"height":0.09,"font_size":100,"color":"#C5FA72","animation":"zoom"},
+        {"id":"sample-intro-subtitle","role":"intro_subtitle","kind":"text","text":"Η ιστοσελίδα σου μπορεί να είναι επίσης.","x":0.5,"y":0.63,"width":0.9,"height":0.07,"font_size":34,"color":"#C3C9DF","animation":"fade_up"}
+      ]
+    },
+    {
+      "id": "sample-scene-showcase",
+      "title": "Παρουσίαση έργου",
+      "duration": 4.0,
+      "background_top": "#10132D",
+      "background_bottom": "#20234B",
+      "transition": "wipe",
+      "transition_duration": 0.45,
+      "layers": [
+        {"id":"sample-showcase-kicker","role":"showcase_kicker","kind":"text","text":"ΣΧΕΔΙΑΣΜΕΝΗ ΓΙΑ ΝΑ ΞΕΧΩΡΙΖΕΙ","x":0.5,"y":0.14,"width":0.9,"height":0.05,"font_size":27,"color":"#36D7F4","animation":"fade"},
+        {"id":"sample-showcase-headline","role":"showcase_headline","kind":"text","text":"ΙΣΤΟΣΕΛΙΔΕΣ\nΣΤΑ ΜΕΤΡΑ ΣΟΥ","x":0.5,"y":0.27,"width":0.9,"height":0.17,"font_size":72,"color":"#F7F8FF","animation":"fade_up"},
+        {"id":"sample-project-mockup","role":"project_showcase","kind":"mockup","text":"Η ψηφιακή εικόνα της επιχείρησής σου","x":0.5,"y":0.62,"width":0.84,"height":0.35,"font_size":64,"color":"#F7F8FF","accent_color":"#6758F5","background":"#F7F8FD","animation":"zoom"},
+        {"id":"sample-showcase-caption","role":"showcase_caption","kind":"text","text":"Μοντέρνος σχεδιασμός. Εμπειρία που μένει.","x":0.5,"y":0.88,"width":0.9,"height":0.05,"font_size":28,"color":"#C3C9DF","animation":"fade_up"}
+      ]
+    },
+    {
+      "id": "sample-scene-closing",
+      "title": "Κλείσιμο και επικοινωνία",
+      "duration": 3.0,
+      "background_top": "#0B1022",
+      "background_bottom": "#161B39",
+      "transition": "push",
+      "transition_duration": 0.45,
+      "layers": [
+        {"id":"sample-closing-brand","role":"closing_brand","kind":"text","text":"EazyFix","x":0.5,"y":0.3,"width":0.86,"height":0.12,"font_size":112,"color":"#F7F8FF","animation":"zoom"},
+        {"id":"sample-closing-headline","role":"closing_headline","kind":"text","text":"ΙΣΤΟΣΕΛΙΔΕΣ\nΣΤΑ ΜΕΤΡΑ ΣΟΥ.","x":0.5,"y":0.48,"width":0.9,"height":0.17,"font_size":70,"color":"#C5FA72","animation":"fade_up"},
+        {"id":"sample-cta","role":"call_to_action","kind":"text","text":"Πες μου την ιδέα σου  •  eazyfix.gr","x":0.5,"y":0.7,"width":0.88,"height":0.07,"font_size":36,"color":"#F7F8FF","background":"#6856FF","animation":"fade_up"},
+        {"id":"sample-closing-footer","role":"closing_footer","kind":"text","text":"WEB DESIGN  •  WEB APPS  •  CUSTOM SOLUTIONS","x":0.5,"y":0.86,"width":0.95,"height":0.05,"font_size":22,"color":"#AAB4D5","animation":"fade"}
+      ]
+    }
+  ]
+}
