@@ -42,6 +42,7 @@ class DebouncedTextEdit(QPlainTextEdit):
 class ChatPanel(QWidget):
     prompt_submitted = Signal(str)
     import_requested = Signal()
+    cancel_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -50,11 +51,11 @@ class ChatPanel(QWidget):
         title_row = QHBoxLayout()
         title = QLabel("AI Chat")
         title.setObjectName("panelTitle")
-        mode = QLabel("LOCAL MODE")
-        mode.setObjectName("modeBadge")
+        self.mode_badge = QLabel("LOCAL MODE")
+        self.mode_badge.setObjectName("modeBadge")
         title_row.addWidget(title)
         title_row.addStretch(1)
-        title_row.addWidget(mode)
+        title_row.addWidget(self.mode_badge)
         layout.addLayout(title_row)
 
         self.history = QPlainTextEdit()
@@ -78,18 +79,45 @@ class ChatPanel(QWidget):
         self.send_button = QPushButton("Δημιουργία  ➤")
         self.send_button.setObjectName("primaryButton")
         self.send_button.clicked.connect(self._send)
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.hide()
+        self.stop_button.clicked.connect(self.cancel_requested.emit)
+        self.retry_button = QPushButton("Retry")
+        self.retry_button.hide()
+        self.retry_button.clicked.connect(self._retry)
         controls.addWidget(self.attach_button)
         controls.addStretch(1)
+        controls.addWidget(self.retry_button)
+        controls.addWidget(self.stop_button)
         controls.addWidget(self.send_button)
         layout.addLayout(controls)
+        self._last_sent = ""
 
     def _send(self) -> None:
         text = self.input.toPlainText().strip()
         if not text:
             return
+        self._last_sent = text
+        self.retry_button.hide()
         self.input.clear()
         self.add_message("Εσύ", text)
         self.prompt_submitted.emit(text)
+
+    def _retry(self) -> None:
+        if self._last_sent:
+            self.input.setPlainText(self._last_sent)
+            self._send()
+
+    def set_mode(self, name: str) -> None:
+        self.mode_badge.setText(name.upper())
+
+    def set_busy(self, busy: bool) -> None:
+        self.send_button.setEnabled(not busy)
+        self.stop_button.setVisible(busy)
+        self.send_button.setText("Σκέφτομαι…" if busy else "Δημιουργία  ➤")
+
+    def set_retry_available(self, available: bool) -> None:
+        self.retry_button.setVisible(available)
 
     def add_message(self, speaker: str, text: str) -> None:
         self.history.appendPlainText(f"\n{speaker}\n{text}")
@@ -125,6 +153,7 @@ class AssetGallery(QWidget):
         self.list.setWrapping(True)
         self.list.setResizeMode(QListWidget.ResizeMode.Adjust)
         self.list.setMovement(QListWidget.Movement.Static)
+        self.list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.list.setIconSize(QSize(64, 58))
         self.list.setGridSize(QSize(92, 92))
         self.list.itemDoubleClicked.connect(self._edit_selected)
@@ -135,6 +164,10 @@ class AssetGallery(QWidget):
         item = self.list.currentItem()
         if item:
             self.place_requested.emit(item.data(Qt.ItemDataRole.UserRole))
+
+    def selected_image_asset_ids(self) -> list[str]:
+        selected = {item.data(Qt.ItemDataRole.UserRole) for item in self.list.selectedItems()}
+        return [asset.id for asset in self._assets if asset.id in selected and asset.kind == "image"]
 
     def set_assets(self, assets: list[Asset]) -> None:
         self._assets = assets

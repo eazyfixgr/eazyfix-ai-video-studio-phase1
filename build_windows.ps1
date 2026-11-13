@@ -9,6 +9,7 @@ try {
         "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
         "--name", "EazyFix AI Video Studio",
         "--collect-all", "PySide6.QtSvg",
+        "--collect-all", "keyring",
         "--add-data", "sample_projects;sample_projects",
         "main.py"
     )

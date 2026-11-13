@@ -27,12 +27,17 @@ from PySide6.QtWidgets import (
 )
 
 from ..assistant import apply_offline_edit, create_from_prompt
+from ..ai.actions import apply_project_actions
+from ..ai.config import AISettings, AISettingsError, AISettingsStore, SecureKeyStore, SecureStorageError
+from ..ai.planner import AIPlan
+from ..ai.workers import PlanWorker
 from ..exporter import ExportWorker
 from ..models import Asset, Layer, Project, Scene, new_id, sample_project
 from ..project_io import autosave_path, import_asset, load_project, save_project
 from ..renderer import render_frame
 from .panels import AssetGallery, ChatPanel, InspectorPanel, TimelinePanel
 from .preview import PreviewCanvas
+from .provider_dialog import ProviderSettingsDialog
 
 
 APP_STYLE = """
@@ -79,6 +84,15 @@ class MainWindow(QMainWindow):
         self._fullscreen_canvas: PreviewCanvas | None = None
         self._export_worker: ExportWorker | None = None
         self._export_dialog: QProgressDialog | None = None
+        self.ai_settings_store = AISettingsStore()
+        self.api_key_store = SecureKeyStore()
+        try:
+            self.ai_settings = self.ai_settings_store.load()
+        except AISettingsError:
+            self.ai_settings = AISettings()
+        self.ai_worker: PlanWorker | None = None
+        self.ai_history: list[dict[str, str]] = []
+        self.last_ai_prompt = ""
         self.preview_size = 380
 
         central = QWidget()
@@ -150,6 +164,9 @@ class MainWindow(QMainWindow):
         self.project_name = QLabel(self.project.name)
         self.project_name.setObjectName("mutedText")
         layout.addWidget(self.project_name)
+        ai_settings = QPushButton("AI Settings")
+        ai_settings.clicked.connect(self._open_ai_settings)
+        layout.addWidget(ai_settings)
         self.inspector_toggle = QPushButton("Inspector")
         self.inspector_toggle.clicked.connect(self._toggle_inspector)
         layout.addWidget(self.inspector_toggle)
@@ -202,8 +219,10 @@ class MainWindow(QMainWindow):
         return bar
 
     def _connect_signals(self) -> None:
+        self.chat.set_mode("DEEPSEEK" if self.ai_settings.provider == "deepseek" else "LOCAL MODE")
         self.chat.prompt_submitted.connect(self._handle_prompt)
         self.chat.import_requested.connect(self.import_assets)
+        self.chat.cancel_requested.connect(self._cancel_ai_request)
         self.gallery.import_requested.connect(self.import_assets)
         self.gallery.place_requested.connect(self._place_asset)
         self.gallery.asset_edited.connect(self._edit_asset)
@@ -479,6 +498,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Redid: {summary}", 2500)
 
     def _handle_prompt(self, prompt: str) -> None:
+        if self.ai_settings.provider == "deepseek":
+            self.last_ai_prompt = prompt
+            self._start_ai_request(prompt)
+            return
         lower = prompt.casefold()
         if re.search(r"\b(create|make|build|δημιούργησε|δημιουργησε|φτιάξε|φτιαξε|φτιάξτε|ετοίμασε)\b", lower):
             project = create_from_prompt(prompt)
@@ -500,6 +523,132 @@ class MainWindow(QMainWindow):
             self._refresh_project(rebuild_timeline=False)
             self.statusBar().showMessage(summary, 3500)
         self.chat.add_message("EazyFix Studio", summary)
+
+    def _open_ai_settings(self) -> None:
+        dialog = ProviderSettingsDialog(self.ai_settings, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.saved_settings:
+            self.ai_settings = dialog.saved_settings
+            self.ai_history.clear()
+            self.chat.set_mode("DEEPSEEK" if self.ai_settings.provider == "deepseek" else "LOCAL MODE")
+            self.chat.add_message("EazyFix Studio", "Οι ρυθμίσεις AI αποθηκεύτηκαν. Το API key φυλάσσεται στο Windows Credential Manager.")
+
+    def _start_ai_request(self, prompt: str, image_asset_ids: list[str] | None = None) -> None:
+        if self.ai_worker and self.ai_worker.isRunning():
+            self.chat.add_message("EazyFix AI", "Περίμενε να ολοκληρωθεί ή να σταματήσει το τρέχον αίτημα.")
+            return
+        if not self.ai_settings.allow_project_context:
+            self.chat.add_message("EazyFix AI", "Άνοιξε το AI Settings και επιβεβαίωσε τη διαβίβαση prompts και project summary στον DeepSeek.")
+            return
+        try:
+            api_key = self.api_key_store.get()
+            if not api_key:
+                raise SecureStorageError("Δεν βρέθηκε αποθηκευμένο API key. Πρόσθεσε το από το AI Settings.")
+        except SecureStorageError as error:
+            self.chat.add_message("EazyFix AI", str(error))
+            return
+
+        approved_images = image_asset_ids or []
+        if image_asset_ids is None:
+            selected_ids = self.gallery.selected_image_asset_ids()
+            if len(selected_ids) > 6:
+                QMessageBox.information(self, "Select fewer images", "Το DeepSeek Vision δέχεται έως 6 επιλεγμένες εικόνες σε ένα αίτημα.")
+                selected_ids = []
+            if selected_ids:
+                names = [asset.name for asset in self.project.assets if asset.id in selected_ids]
+                answer = QMessageBox.question(
+                    self,
+                    "Send selected images to DeepSeek?",
+                    "Οι επιλεγμένες εικόνες θα σταλούν στον DeepSeek για ανάλυση:\n\n"
+                    + "\n".join(f"• {name}" for name in names)
+                    + "\n\nΟι πρωτότυπες εικόνες δεν αλλάζουν. Να συνεχίσω;",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    approved_images = selected_ids
+
+        try:
+            project_copy = Project.from_dict(copy.deepcopy(self.project.to_dict()))
+        except Exception as error:
+            self.chat.add_message("EazyFix AI", f"Δεν μπόρεσα να ετοιμάσω τη σύνοψη του project: {error}")
+            return
+        previous_turns = copy.deepcopy(self.ai_history[-10:])
+        self.ai_history.append({"role": "user", "content": prompt})
+        worker = PlanWorker(
+            self.ai_settings,
+            api_key,
+            prompt,
+            project_copy,
+            self.selected_layer_id,
+            previous_turns,
+            approved_images,
+            self,
+        )
+        worker.completed.connect(lambda plan: self._receive_ai_plan(plan, worker))
+        worker.failed.connect(lambda message: self._ai_failed(message, worker))
+        worker.cancelled.connect(lambda: self._ai_cancelled(worker))
+        worker.finished.connect(lambda: self._ai_worker_finished(worker))
+        self.ai_worker = worker
+        self.chat.set_retry_available(False)
+        self.chat.set_busy(True)
+        self.chat.add_message("EazyFix AI", "Ετοιμάζω σχέδιο…")
+        worker.start()
+
+    def _receive_ai_plan(self, plan: AIPlan, worker: PlanWorker) -> None:
+        if worker is not self.ai_worker:
+            return
+        summaries: tuple[str, ...] = ()
+        try:
+            if plan.actions:
+                before = copy.deepcopy(self.project.to_dict())
+                applied = apply_project_actions(self.project, list(plan.actions), self.selected_layer_id)
+                self.project = applied.project
+                summaries = applied.summaries
+                self._push_undo(before, "AI: " + (summaries[0] if summaries else "Updated project"))
+                if applied.created_project:
+                    self.current_scene, self.current_time, self.selected_layer_id = 0, 0.0, ""
+                self._refresh_project()
+        except Exception as error:
+            self._ai_failed(f"Το πλάνο δεν εφαρμόστηκε· το project έμεινε αμετάβλητο. {error}", worker)
+            return
+        reply = plan.reply or "Ολοκλήρωσα την ενημέρωση του project."
+        if summaries:
+            reply += "\n\nΕφαρμόστηκαν: " + "; ".join(summaries)
+        self.chat.add_message("EazyFix AI", reply)
+        self.chat.set_retry_available(False)
+        self.ai_history.append({"role": "assistant", "content": plan.reply})
+        total = plan.usage.get("total_tokens")
+        usage_text = f" · {total} tokens" if total is not None else ""
+        self.statusBar().showMessage(f"{plan.model}{usage_text} · {plan.image_count} image(s) sent", 7000)
+
+    def _ai_failed(self, message: str, worker: PlanWorker) -> None:
+        if worker is not self.ai_worker:
+            return
+        if self.ai_history and self.ai_history[-1].get("role") == "user":
+            self.ai_history.pop()
+        self.chat.add_message("EazyFix AI", f"Δεν ολοκληρώθηκε το αίτημα: {message}")
+        self.chat.set_retry_available(True)
+
+    def _ai_cancelled(self, worker: PlanWorker) -> None:
+        if worker is self.ai_worker:
+            if self.ai_history and self.ai_history[-1].get("role") == "user":
+                self.ai_history.pop()
+            self.chat.add_message("EazyFix AI", "Το αίτημα σταμάτησε. Δεν εφαρμόστηκε καμία αλλαγή.")
+            self.chat.set_retry_available(True)
+
+    def _cancel_ai_request(self) -> None:
+        if self.ai_worker and self.ai_worker.isRunning():
+            self.ai_worker.cancel()
+            self.chat.stop_button.setEnabled(False)
+            self.chat.stop_button.setText("Stopping…")
+
+    def _ai_worker_finished(self, worker: PlanWorker) -> None:
+        if self.ai_worker is worker:
+            self.ai_worker = None
+            self.chat.set_busy(False)
+            self.chat.stop_button.setEnabled(True)
+            self.chat.stop_button.setText("Stop")
+            worker.deleteLater()
 
     def _place_asset(self, asset_id: str) -> None:
         asset = next((item for item in self.project.assets if item.id == asset_id), None)
@@ -771,6 +920,9 @@ class MainWindow(QMainWindow):
             self._commit(f"Imported {len(imported)} media file(s)", add)
 
     def closeEvent(self, event) -> None:
+        if self.ai_worker and self.ai_worker.isRunning():
+            self.ai_worker.cancel()
+            self.ai_worker.wait()
         if self._export_worker and self._export_worker.isRunning():
             answer = QMessageBox.question(self, "Export in progress", "Cancel export and close the application?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
             if answer != QMessageBox.StandardButton.Yes:

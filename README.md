@@ -1,6 +1,8 @@
 # EazyFix AI Video Studio
 
-Το **EazyFix AI Video Studio** είναι η αρχή ενός επεξεργάσιμου desktop video editor για Windows. Η έκδοση 0.1.0 καλύπτει την πρώτη λειτουργική φάση: project με σκηνές και layers, import media, επεξεργασία κειμένων/εικόνων, ζωντανό preview, undo/redo, αποθήκευση και πραγματικό MP4/H.264 export.
+Το **EazyFix AI Video Studio** είναι ένας επεξεργάσιμος desktop video editor για Windows. Η έκδοση 0.2.0 περιλαμβάνει scene-based editor, live preview, πραγματικό MP4/H.264 export, offline templates και αρχική DeepSeek AI orchestration με ασφαλείς, allow-listed project actions.
+
+**Οδηγός χρήσης στα ελληνικά:** [USER_GUIDE_EL.md](USER_GUIDE_EL.md) — εξηγεί τη ροή από import και prompts μέχρι άμεση επεξεργασία, αποθήκευση, DeepSeek setup και export.
 
 ## Εκκίνηση στα Windows
 
@@ -64,22 +66,32 @@ PowerShell -ExecutionPolicy Bypass -File .\build_windows.ps1 -BundleFFmpeg
 - Text editing, βασικός άμεσος χειρισμός, animation presets, transitions, aspect ratios, project persistence, undo/redo και H.264/AAC export.
 - Δείγμα project, automated tests και PyInstaller build script.
 
+### Phase 2 — αρχική DeepSeek integration διαθέσιμη
+
+- Provider settings με endpoint/model selection, `GET /models` capability discovery και connection test.
+- DeepSeek Chat Completions για project planning και conversational edits, με `deepseek-v4-pro` για text και `deepseek-flash` για vision ως προεπιλογές που ανακτώνται/ελέγχονται από το API.
+- Ρητή συγκατάθεση πριν χρησιμοποιηθεί provider, ξεχωριστή επιβεβαίωση κάθε φορά που θα σταλούν επιλεγμένες εικόνες, και API key στο OS credential store μέσω `keyring`.
+- Δομημένα JSON plans που επικυρώνονται ως συγκεκριμένες project operations. Το μοντέλο δεν εκτελεί κώδικα/shell και μη έγκυρα actions απορρίπτονται ατομικά.
+- Token usage εμφανίζεται όταν το επιστρέφει το API. Δεν γίνεται live API-key call στο test suite· οι provider contracts ελέγχονται με mocked/local tests.
+
 ### Δεν έχει υλοποιηθεί ακόμη
 
-- Δεν υπάρχει σύνδεση με DeepSeek ή άλλο AI provider, vision analysis, tool-calling, AI-generated storyboard, TTS ή AI narration. Το chat αυτή τη στιγμή χρησιμοποιεί απλούς τοπικούς κανόνες· **δεν παρουσιάζεται ως AI** και δεν ανεβάζει media.
+- Δεν υπάρχουν ακόμη OpenAI/Gemini/Ollama providers, TTS/narration ή AI-generated images/video.
 - Δεν υπάρχει layered/keyframe timeline, beat detection, voiceover editor ή editing/caching σε επίπεδο scene.
 - Η εισαγωγή video είναι library-only, όχι video compositing.
 - Δεν έχει εκτελεστεί ακόμη Windows installer/signing/distribution pipeline.
 
-Η σύνδεση AI προγραμματίζεται για Phase 2. Όταν προστεθεί, τα API keys θα αποθηκεύονται στο Windows Credential Manager/secure store και κάθε upload σε provider θα απαιτεί σαφή συγκατάθεση. Μην βάλεις κλειδιά API στο project αρχείο ή σε source code.
+Η DeepSeek API χρήση μπορεί να χρεώνεται σύμφωνα με την τρέχουσα τιμολόγηση του provider. Η εφαρμογή δεν υπολογίζει κόστος· έλεγξέ το στο DeepSeek Platform. Μην βάζεις κλειδιά API σε project αρχεία ή source code.
 
 ## Δομή κώδικα
 
 - `eazyfix_studio/models.py` — validated project objects και schema.
+- `eazyfix_studio/ai/` — DeepSeek HTTP client, image encoding, planning και strict action executor.
 - `project_io.py` — project persistence, portable assets και recovery.
 - `renderer.py`, `animations.py` — κοινός Pillow rendering/motion engine.
 - `exporter.py` — cancelable FFmpeg worker.
 - `assistant.py` — deterministic offline templates και περιορισμένες τοπικές edits.
 - `ui/` — preview canvas, panels και main desktop workspace.
 - `tests/` — unit tests για project model, persistence, renderer και offline workflow.
+- `USER_GUIDE_EL.md` — οδηγίες end-user στα ελληνικά.
 - `produce_v2.py` — το προϋπάρχον standalone video script, διατηρημένο ανεξάρτητα.
